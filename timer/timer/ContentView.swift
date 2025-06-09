@@ -14,6 +14,10 @@ struct CircularTimerView: View {
     @State private var inputSeconds: Int = 0
     @State private var showingSettings = false
     
+    // 타이머/스톱워치 모드
+    @State private var isTimerMode = true  // true: 타이머, false: 스톱워치
+    @State private var stopwatchTime: Int = 0  // 스톱워치 시간
+    
     let timer = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
     
     var body: some View {
@@ -22,8 +26,59 @@ struct CircularTimerView: View {
             Color.black
                 .ignoresSafeArea()
             
-            // 가로/세로 모드에 따른 레이아웃
-            GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // 상단 토글 스위치
+                HStack {
+                    Spacer()
+                    
+                    // 커스텀 토글 스위치
+                    ZStack {
+                        // 배경 캡슐
+                        Capsule()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 120, height: 40)
+                        
+                        // 슬라이딩 원형 버튼
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [.teal, .cyan]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 36, height: 36)
+                            .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                            .offset(x: isTimerMode ? -30 : 30)
+                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isTimerMode)
+                        
+                        // 라벨들
+                        HStack(spacing: 0) {
+                            Text("타이머")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(isTimerMode ? .white : .gray)
+                                .frame(width: 60)
+                            
+                            Text("스톱워치")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(!isTimerMode ? .white : .gray)
+                                .frame(width: 60)
+                        }
+                    }
+                    .onTapGesture {
+                        if !isRunning {  // 실행 중이 아닐 때만 전환 가능
+                            isTimerMode.toggle()
+                            resetTimer()  // 모드 전환 시 리셋
+                        }
+                    }
+                    
+                    Spacer()
+                }
+                .padding(.top, 60)
+                .padding(.bottom, 20)
+                
+                // 가로/세로 모드에 따른 레이아웃
+                GeometryReader { geometry in
                 if geometry.size.width > geometry.size.height {
                     // 가로모드 - 원형 타이머와 버튼을 나란히
                     HStack(spacing: 50) {
@@ -40,7 +95,7 @@ struct CircularTimerView: View {
                                 .frame(width: 300, height: 300)
                             
                             Circle()
-                                .trim(from: 0, to: progress())
+                                .trim(from: 0, to: isTimerMode ? progress() : stopwatchProgress())
                                 .stroke(
                                     LinearGradient(
                                         gradient: Gradient(colors: [.orange, .red]),
@@ -84,12 +139,12 @@ struct CircularTimerView: View {
                             
                             // 중앙 시간 표시
                             VStack(spacing: 4) {
-                                Text(formatTime(timeLeft))
+                                Text(isTimerMode ? formatTime(timeLeft) : formatTime(stopwatchTime))
                                     .font(.system(size: 42, weight: .bold, design: .monospaced))
                                     .foregroundColor(.white)
                                     .shadow(color: getGlowColor(), radius: 15, x: 0, y: 0)
                                 
-                                Text(getStatusText())
+                                Text(isTimerMode ? getStatusText() : getStopwatchStatusText())
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundColor(getGlowColor().opacity(0.8))
                             }
@@ -97,26 +152,33 @@ struct CircularTimerView: View {
                         
                         // 우측 세로 버튼들
                         VStack(spacing: 30) {
-                            // TIME SET 버튼
-                            Button(action: {
-                                if !isRunning {
-                                    showingSettings = true
+                            // TIME SET 버튼 (타이머 모드에서만 표시)
+                            if isTimerMode {
+                                Button(action: {
+                                    if !isRunning {
+                                        showingSettings = true
+                                    }
+                                }) {
+                                    VStack(spacing: 4) {
+                                        Text("TIME")
+                                            .font(.system(size: 12, weight: .bold))
+                                        Text("SET")
+                                            .font(.system(size: 12, weight: .bold))
+                                    }
+                                    .foregroundColor(.white)
+                                    .multilineTextAlignment(.center)
+                                    .frame(width: 60, height: 60)
+                                    .background(Color.gray.opacity(0.3))
+                                    .clipShape(Circle())
                                 }
-                            }) {
-                                VStack(spacing: 4) {
-                                    Text("TIME")
-                                        .font(.system(size: 12, weight: .bold))
-                                    Text("SET")
-                                        .font(.system(size: 12, weight: .bold))
-                                }
-                                .foregroundColor(.white)
-                                .multilineTextAlignment(.center)
-                                .frame(width: 60, height: 60)
-                                .background(Color.gray.opacity(0.3))
-                                .clipShape(Circle())
+                                .disabled(isRunning)
+                                .opacity(isRunning ? 0.5 : 1.0)
+                            } else {
+                                // 스톱워치 모드에서는 빈 공간
+                                Circle()
+                                    .fill(Color.clear)
+                                    .frame(width: 60, height: 60)
                             }
-                            .disabled(isRunning)
-                            .opacity(isRunning ? 0.5 : 1.0)
                             
                             // 시작/일시정지 버튼
                             Button(action: toggleTimer) {
@@ -134,7 +196,7 @@ struct CircularTimerView: View {
                                     .clipShape(Circle())
                                     .shadow(color: .orange, radius: 10)
                             }
-                            .disabled(totalSeconds == 0)
+                            .disabled(isTimerMode ? totalSeconds == 0 : false)
                             
                             // 리셋 버튼
                             Button(action: resetTimer) {
@@ -164,7 +226,7 @@ struct CircularTimerView: View {
                                 .frame(width: 300, height: 300)
                             
                             Circle()
-                                .trim(from: 0, to: progress())
+                                .trim(from: 0, to: isTimerMode ? progress() : stopwatchProgress())
                                 .stroke(
                                     LinearGradient(
                                         gradient: Gradient(colors: [.orange, .red]),
@@ -208,12 +270,12 @@ struct CircularTimerView: View {
                             
                             // 중앙 시간 표시
                             VStack(spacing: 4) {
-                                Text(formatTime(timeLeft))
+                                Text(isTimerMode ? formatTime(timeLeft) : formatTime(stopwatchTime))
                                     .font(.system(size: 42, weight: .bold, design: .monospaced))
                                     .foregroundColor(.white)
                                     .shadow(color: getGlowColor(), radius: 15, x: 0, y: 0)
                                 
-                                Text(getStatusText())
+                                Text(isTimerMode ? getStatusText() : getStopwatchStatusText())
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundColor(getGlowColor().opacity(0.8))
                             }
@@ -226,22 +288,28 @@ struct CircularTimerView: View {
                         
                         // 컨트롤 버튼들
                         HStack(spacing: 20) {
-                            // 설정 버튼
-                            Button(action: {
-                                if !isRunning {
-                                    showingSettings = true
+                            // 설정 버튼 (타이머 모드에서만)
+                            if isTimerMode {
+                                Button(action: {
+                                    if !isRunning {
+                                        showingSettings = true
+                                    }
+                                }) {
+                                    Text("TIME\nSET")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .multilineTextAlignment(.center)
+                                        .frame(width: 50, height: 50)
+                                        .background(Color.gray.opacity(0.3))
+                                        .clipShape(Circle())
                                 }
-                            }) {
-                                Text("TIME\nSET")
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .multilineTextAlignment(.center)
+                                .disabled(isRunning)
+                                .opacity(isRunning ? 0.5 : 1.0)
+                            } else {
+                                // 스톱워치 모드에서는 투명한 공간
+                                Spacer()
                                     .frame(width: 50, height: 50)
-                                    .background(Color.gray.opacity(0.3))
-                                    .clipShape(Circle())
                             }
-                            .disabled(isRunning)
-                            .opacity(isRunning ? 0.5 : 1.0)
                             
                             // 시작/일시정지 버튼
                             Button(action: toggleTimer) {
@@ -259,7 +327,7 @@ struct CircularTimerView: View {
                                     .clipShape(Circle())
                                     .shadow(color: .orange, radius: 10)
                             }
-                            .disabled(totalSeconds == 0)
+                            .disabled(isTimerMode ? totalSeconds == 0 : false)
                             
                             // 리셋 버튼
                             Button(action: resetTimer) {
@@ -277,27 +345,48 @@ struct CircularTimerView: View {
                     .clipped() // 안전 영역 처리
                 }
             }
+            }
         }
         .onReceive(timer) { _ in
-            if isRunning && timeLeft > 0 {
-                timeLeft -= 1
-                
-                // 2초마다 회전 (2의 배수 초에 도달할 때) - 중복 방지
-                if timeLeft % 2 == 0 && timeLeft != lastRotationTime && !isAnimating {
-                    lastRotationTime = timeLeft
-                    isAnimating = true
-                    rotation = 360
-                    
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.1) {
-                        rotation = 0
-                        isAnimating = false
+            if isRunning {
+                if isTimerMode {
+                    // 타이머 모드
+                    if timeLeft > 0 {
+                        timeLeft -= 1
+                        
+                        // 2초마다 회전 (2의 배수 초에 도달할 때) - 중복 방지
+                        if timeLeft % 2 == 0 && timeLeft != lastRotationTime && !isAnimating {
+                            lastRotationTime = timeLeft
+                            isAnimating = true
+                            rotation = 360
+                            
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3.1) {
+                                rotation = 0
+                                isAnimating = false
+                            }
+                        }
+                        
+                        if timeLeft <= 0 {
+                            isRunning = false
+                            isFinished = true
+                            timeLeft = 0
+                        }
                     }
-                }
-                
-                if timeLeft <= 0 {
-                    isRunning = false
-                    isFinished = true
-                    timeLeft = 0
+                } else {
+                    // 스톱워치 모드
+                    stopwatchTime += 1
+                    
+                    // 2초마다 회전
+                    if stopwatchTime % 2 == 0 && stopwatchTime != lastRotationTime && !isAnimating {
+                        lastRotationTime = stopwatchTime
+                        isAnimating = true
+                        rotation = 360
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.1) {
+                            rotation = 0
+                            isAnimating = false
+                        }
+                    }
                 }
             }
         }
@@ -313,22 +402,31 @@ struct CircularTimerView: View {
     }
     
     private func toggleTimer() {
-        if timeLeft == 0 && !isRunning {
-            // 타이머가 끝났을 때 다시 시작
-            resetTimer()
-        }
-        isRunning.toggle()
-        if isRunning {
-            isFinished = false
+        if isTimerMode {
+            // 타이머 모드
+            if timeLeft == 0 && !isRunning {
+                resetTimer()
+            }
+            isRunning.toggle()
+            if isRunning {
+                isFinished = false
+            }
+        } else {
+            // 스톱워치 모드
+            isRunning.toggle()
         }
     }
     
     private func resetTimer() {
         isRunning = false
         isFinished = false
-        timeLeft = totalSeconds
+        if isTimerMode {
+            timeLeft = totalSeconds
+        } else {
+            stopwatchTime = 0
+        }
         rotation = 0
-        lastRotationTime = -1  // 회전 추적 리셋
+        lastRotationTime = -1
     }
     
     private func updateTimerSettings() {
@@ -338,23 +436,23 @@ struct CircularTimerView: View {
         isFinished = false
     }
     
-    private func progress() -> Double {
+    func progress() -> Double {
         guard totalSeconds > 0 else { return 0 }
         return Double(totalSeconds - timeLeft) / Double(totalSeconds)
     }
     
-    private func formatTime(_ seconds: Int) -> String {
+    func formatTime(_ seconds: Int) -> String {
         let minutes = seconds / 60
         let remainingSeconds = seconds % 60
         return String(format: "%02d:%02d", minutes, remainingSeconds)
     }
     
-    private func formatTimeForCircle() -> String {
-        let timeString = formatTime(timeLeft)
+    func formatTimeForCircle() -> String {
+        let timeString = isTimerMode ? formatTime(timeLeft) : formatTime(stopwatchTime)
         return "\(timeString)    \(timeString)    \(timeString)    \(timeString)    "
     }
     
-    private func getStatusText() -> String {
+    func getStatusText() -> String {
         if isFinished {
             return "완료!"
         } else if isRunning {
@@ -364,7 +462,21 @@ struct CircularTimerView: View {
         }
     }
     
-    private func getGlowColor() -> Color {
+    func getStopwatchStatusText() -> String {
+        if isRunning {
+            return "측정 중"
+        } else {
+            return "대기 중"
+        }
+    }
+    
+    func stopwatchProgress() -> Double {
+        // 스톱워치는 60초(1분)를 한 바퀴로 계산
+        let maxSeconds = 60.0
+        return min(Double(stopwatchTime % 60) / maxSeconds, 1.0)
+    }
+    
+    func getGlowColor() -> Color {
         if isFinished {
             return .red
         } else if timeLeft < totalSeconds / 10 {
@@ -376,7 +488,7 @@ struct CircularTimerView: View {
         }
     }
     
-    private func getGlowRadius() -> CGFloat {
+    func getGlowRadius() -> CGFloat {
         if isFinished {
             return 20
         } else if timeLeft < totalSeconds / 10 {
