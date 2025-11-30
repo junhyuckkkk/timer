@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import AudioToolbox
+import GoogleMobileAds
 
 // MARK: - 모드 정의
 enum TimerMode: Int {
@@ -20,8 +21,8 @@ struct CircularTimerView: View {
     @State private var mode: TimerMode = .timer
     
     // 타이머 관련 상태
-    @State private var totalSeconds: Int = 0         // 🔁 300 → 0
-    @State private var timeLeft: Int = 0            // 🔁 300 → 0
+    @State private var totalSeconds: Int = 0
+    @State private var timeLeft: Int = 0
     
     // 스톱워치 정밀도 (Double)
     @State private var stopwatchTime: Double = 0.0
@@ -47,7 +48,7 @@ struct CircularTimerView: View {
     @State private var currentTime: Date = Date()
     
     // 설정 시트
-    @State private var inputMinutes: Int = 0        // 🔁 5 → 0
+    @State private var inputMinutes: Int = 0
     @State private var inputSeconds: Int = 0
     @State private var showingSettings: Bool = false
     
@@ -232,7 +233,7 @@ extension CircularTimerView {
             VStack(spacing: 6) {
                 ForEach(Array(lapTimes.enumerated()), id: \.offset) { index, time in
                     HStack {
-                        Text("랩 \(lapTimes.count - index)")
+                        Text("\(AppStrings.lap) \(lapTimes.count - index)")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.gray)
                         Spacer()
@@ -302,11 +303,11 @@ extension CircularTimerView {
     var modeSwitchPortrait: some View {
         VStack(spacing: 8) {
             HStack {
-                modeLabel(.timer, "타이머")
+                modeLabel(.timer, AppStrings.modeTimer)
                 Spacer()
-                modeLabel(.clock, "시계")
+                modeLabel(.clock, AppStrings.modeClock)
                 Spacer()
-                modeLabel(.stopwatch, "스톱워치")
+                modeLabel(.stopwatch, AppStrings.modeStopwatch)
             }
             .frame(width: switchWidthPortrait)
             
@@ -336,11 +337,11 @@ extension CircularTimerView {
     var modeSwitchLandscape: some View {
         VStack(spacing: 8) {
             HStack {
-                modeLabel(.timer, "타이머")
+                modeLabel(.timer, AppStrings.modeTimer)
                 Spacer()
-                modeLabel(.clock, "시계")
+                modeLabel(.clock, AppStrings.modeClock)
                 Spacer()
-                modeLabel(.stopwatch, "스톱워치")
+                modeLabel(.stopwatch, AppStrings.modeStopwatch)
             }
             .frame(width: switchWidthLandscape)
             
@@ -538,7 +539,7 @@ extension CircularTimerView {
                 showingSettings = true
             }
         }) {
-            Text("SET")
+            Text(AppStrings.setButton)
                 .foregroundColor(.white)
                 .frame(width: 50, height: 50)
                 .background(Color.gray.opacity(0.3))
@@ -548,7 +549,7 @@ extension CircularTimerView {
     
     var lapButton: some View {
         Button(action: { recordLap() }) {
-            Text("LAP")
+            Text(AppStrings.lapButton)
                 .foregroundColor(.white)
                 .font(.system(size: 14, weight: .bold))
                 .frame(width: 50, height: 50)
@@ -651,12 +652,12 @@ extension CircularTimerView {
     var statusText: String {
         switch mode {
         case .timer:
-            if isFinished { return "완료!" }
-            return isRunning ? "진행 중" : "대기 중"
+            if isFinished { return AppStrings.statusComplete }
+            return isRunning ? AppStrings.statusRunning : AppStrings.statusWaiting
         case .stopwatch:
-            return isRunning ? "측정 중" : "대기 중"
+            return isRunning ? AppStrings.statusMeasuring : AppStrings.statusWaiting
         case .clock:
-            return "현재 시각"
+            return AppStrings.statusCurrentTime
         }
     }
     
@@ -783,17 +784,17 @@ struct TimerPickerSheet: View {
                 .frame(width: 40, height: 6)
                 .padding(.top, 10)
             
-            Text("타이머 설정")
+            Text(AppStrings.settingsTitle)
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(.white)
             
             HStack(spacing: 0) {
-                PickerWheel(title: "분", value: $minutes, range: 0...99)
+                PickerWheel(title: AppStrings.minutes, value: $minutes, range: 0...99)
                 Text(":")
                     .font(.system(size: 26, weight: .bold))
                     .foregroundColor(.orange)
                     .padding(.horizontal, 8)
-                PickerWheel(title: "초", value: $seconds, range: 0...59)
+                PickerWheel(title: AppStrings.seconds, value: $seconds, range: 0...59)
             }
             
             Button(action: {
@@ -846,17 +847,24 @@ struct PickerWheel: View {
     }
 }
 
-// MARK: - 배너 광고 플레이스홀더
-struct BannerAdView: View {
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.gray.opacity(0.3))
-            Text("Banner Ad")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white.opacity(0.8))
+// MARK: - AdMob 배너 광고
+struct BannerAdView: UIViewRepresentable {
+    let adUnitID: String = AdConfig.bannerAdUnitID
+    
+    func makeUIView(context: Context) -> BannerView {
+        let banner = BannerView(adSize: AdSizeBanner)
+        banner.adUnitID = adUnitID
+        
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootVC = windowScene.windows.first?.rootViewController {
+            banner.rootViewController = rootVC
         }
+        
+        banner.load(Request())
+        return banner
     }
+    
+    func updateUIView(_ uiView: BannerView, context: Context) {}
 }
 
 // MARK: - 엔트리 포인트
